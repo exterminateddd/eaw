@@ -1,6 +1,12 @@
 from tkinter import *
 from random import *
-from time import *
+from asyncio import *
+from winsound import *
+
+import os
+
+
+loop = get_event_loop()
 
 
 root = Tk()
@@ -21,6 +27,9 @@ enemy.configure(background="yellow")
 
 square = Button(root)
 square.configure(background="red")
+
+restart_game = Button(root)
+restart_game.configure(text='Restart The Game')
 
 
 def move_enemy(direction):
@@ -47,6 +56,8 @@ def move_enemy(direction):
                 enemy.place(y=int(enemy.place_info()['y']) + randint(-4, 4), x=int(enemy.place_info()['x']) + randint(0, 8))
             else:
                 enemy.place(y=int(enemy.place_info()['y']) + randint(-4, 4), x=int(enemy.place_info()['x']) + randint(-8, 0))
+        if dir_ == 'RAND':
+            enemy.place(y=int(enemy.place_info()['y']) + randint(-5, 5), x=int(enemy.place_info()['x']) + randint(-5, 5))
     except TclError:
         pass
 
@@ -63,7 +74,13 @@ game_over = Label(root)
 game_over.configure(foreground="red", font="Arial 48")
 
 
-def spawn_enemy():
+def spawn_enemy(reason):
+    global enemy_respawns
+    if reason != 'auto':
+        enemy_respawns -= 1
+        respawn_enemy.pack_forget()
+        respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})', command=lambda: spawn_enemy('aaa'))
+        respawn_enemy.pack(side="bottom", anchor="w")
     enemy.place_forget()
     enemy.place(width=randint(12, 20), height=randint(12, 20), x=randint(30, 400), y=randint(40, 400))
 
@@ -102,13 +119,23 @@ def check_if_eaten(player_info, enemy_info):
             speed_alert.place_forget()
             speed_alert.configure(text='Speed: '+str(speed)+'px / move')
             speed_alert.place(x=390, y=0)
+            PlaySound('boom-eaten.wav', SND_ALIAS | SND_ASYNC)
             enemy.place_forget()
-            spawn_enemy()
+            spawn_enemy('auto')
             if enemy_respawns > 0:
-                respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})', command=lambda: spawn_enemy())
+                respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})', command=lambda: spawn_enemy('aaa'))
             else:
                 respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})')
             respawn_enemy.pack(side="bottom", anchor="w")
+
+
+WIDTH = 70
+HEIGHT = 26
+
+
+player = Button(root)
+player.configure(background='gray', text='ZZZZ><><ZZZZ')
+player.place(width=WIDTH, height=HEIGHT, x=220, y=220)
 
 
 def check_if_killed_by_square(player_info, square_info):
@@ -129,19 +156,17 @@ def check_if_killed_by_square(player_info, square_info):
             global eaten_enemies, speed, is_dead
             eaten_enemies = 0
             speed = 10
-            game_over.place(width=320, height=60, x=90, y=200)
+            PlaySound('boom-dead.wav', SND_ALIAS | SND_ASYNC)
+            game_over.place(width=340, height=60, x=80, y=200)
             game_over.configure(text='Game Over!')
             is_dead = True
-            enemy.destroy()
 
+            def restart():
+                os.execv(sys.executable, ['python'] + sys.argv)
 
-WIDTH = 70
-HEIGHT = 26
-
-
-player = Button(root)
-player.configure(background='gray', text='ZZZZ><><ZZZZ')
-player.place(width=WIDTH, height=HEIGHT, x=220, y=220)
+            global restart_game
+            restart_game.place(width=200, height=50, x=150, y=280)
+            restart_game.configure(command=restart, font="Arial 18")
 
 
 def move_up():
@@ -218,13 +243,18 @@ ctrl_right = Button(root, text='Right', command=move_right)
 
 respawn_enemy = Button(root)
 if enemy_respawns > 0:
-    respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})', command=lambda: spawn_enemy())
+    respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})', command=lambda: spawn_enemy('aaa'))
 else:
     respawn_enemy.configure(text=f'Respawn Enemy (left {enemy_respawns})')
 respawn_enemy.pack(side="bottom", anchor="w")
 
 
-spawn_enemy()
+async def rand_move_enemy():
+    while True:
+        if not is_dead:
+            move_enemy('RAND')
+
+spawn_enemy('auto')
 spawn_square()
 
 root.bind('<Left>', lambda x: move_left())
